@@ -57,6 +57,14 @@ to the share sheet, so you can save it to Photos or Files. Use it on your home n
 such as Tailscale; do not expose it to the internet. This version has the six faders, rotate/mirror,
 B&W, film stock and roll matching; the dust, crop and contact-sheet tools are desktop-only for now.
 
+### In Docker (NAS or home server)
+
+Every push to `main` builds an image (amd64 and arm64) and publishes it to
+`ghcr.io/jedwardrico/dumbconvert:latest`. On the NAS, use `docker-compose.yml`: set the password and run
+`docker compose up -d`. To update, `docker compose pull && docker compose up -d`, or let Watchtower do it.
+If the package is private, `docker login ghcr.io` with a token that has `read:packages` first.
+To build it yourself instead: `git clone --recurse-submodules`, then `docker build -t dumbconvert .`.
+
 ## Install
 
 1. Download the zip from the [macOS beta](https://github.com/jiijii0/dumbconvert/releases/tag/v0.1.0-beta.2) and unzip it.

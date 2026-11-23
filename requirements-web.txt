@@ -1,0 +1,5 @@
+# Browser version (iPad etc.): pip install -r requirements.txt -r requirements-web.txt
+fastapi
+python-multipart
+uvicorn
+httpx

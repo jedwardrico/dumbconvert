@@ -41,6 +41,22 @@
 
 Made for negatives scanned with a digital camera over a white light, colour or B&W.
 
+## iPad and other tablets (self-hosted)
+
+DumbConvert also runs as a small web server, so you can use it from Safari on an iPad. The conversion
+happens on the machine that runs the server; your scans never go anywhere else.
+
+```sh
+pip install -r requirements.txt -r requirements-web.txt   # plus the NegPy steps in CONTRIBUTING.md
+DUMBCONVERT_TOKEN=pick-a-password python -m simpleneg.web --host 0.0.0.0 --port 8000
+```
+
+Open `http://<that machine>:8000/?token=pick-a-password` on the iPad (use Share > Add to Home Screen
+for a full-screen app). Add scans from the Files app, drag the faders, then Export: the result goes
+to the share sheet, so you can save it to Photos or Files. Use it on your home network or behind a VPN
+such as Tailscale; do not expose it to the internet. This version has the six faders, rotate/mirror,
+B&W, film stock and roll matching; the dust, crop and contact-sheet tools are desktop-only for now.
+
 ## Install
 
 1. Download the zip from the [macOS beta](https://github.com/jiijii0/dumbconvert/releases/tag/v0.1.0-beta.2) and unzip it.

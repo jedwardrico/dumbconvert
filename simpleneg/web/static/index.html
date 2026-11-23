@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DumbConvert">
+<meta name="theme-color" content="#111">
+<title>DumbConvert</title>
+<style>
+  :root { --bg:#111; --panel:#1b1b1d; --line:#2e2e32; --fg:#eee; --dim:#999; --acc:#2ee6ff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:16px -apple-system,system-ui,sans-serif; overscroll-behavior:none; }
+  body { display:grid; grid-template-columns:1fr 340px; grid-template-rows:auto 1fr auto;
+    grid-template-areas:"bar bar" "view side" "strip side";
+    height:100dvh; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  @media (max-width:800px) and (orientation:portrait) {
+    body { grid-template-columns:1fr; grid-template-rows:auto 1fr auto auto;
+      grid-template-areas:"bar" "view" "strip" "side"; }
+    #side { max-height:38dvh; }
+  }
+  #bar { grid-area:bar; display:flex; gap:8px; align-items:center; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); }
+  #bar h1 { font-size:17px; margin:0 auto 0 0; letter-spacing:.3px; }
+  button, select, .btn { font:inherit; color:var(--fg); background:#2a2a2e; border:1px solid var(--line); border-radius:10px;
+    padding:10px 14px; min-height:44px; min-width:44px; }
+  button:active, .btn:active { background:#3a3a40; }
+  button.primary { background:var(--acc); color:#001; border-color:var(--acc); font-weight:600; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  button:disabled { opacity:.4; }
+  #view { grid-area:view; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; min-height:0; }
+  #view img { max-width:100%; max-height:100%; object-fit:contain; touch-action:none; user-select:none; -webkit-user-select:none; }
+  #hint { position:absolute; color:var(--dim); text-align:center; padding:24px; line-height:1.5; }
+  #busy { position:absolute; top:10px; right:12px; width:10px; height:10px; border-radius:50%; background:var(--acc); opacity:0; transition:opacity .15s; }
+  #busy.on { opacity:1; }
+  #strip { grid-area:strip; display:flex; gap:8px; padding:8px 12px; overflow-x:auto; background:var(--panel); border-top:1px solid var(--line); min-height:78px; -webkit-overflow-scrolling:touch; }
+  #strip .th { flex:0 0 auto; width:96px; height:62px; border-radius:8px; border:2px solid transparent; background:#000 center/cover; position:relative; }
+  #strip .th.sel { border-color:var(--acc); }
+  #strip .th span { position:absolute; left:4px; bottom:2px; right:4px; font-size:10px; color:#fff; text-shadow:0 0 3px #000; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  #side { grid-area:side; background:var(--panel); border-left:1px solid var(--line); padding:12px 14px 20px; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .row { margin:0 0 14px; }
+  .row label { display:flex; justify-content:space-between; color:var(--dim); font-size:13px; margin-bottom:2px; }
+  .row label b { color:var(--fg); font-weight:500; font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; height:36px; margin:0; accent-color:var(--acc); touch-action:pan-y; }
+  .tools { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  details { border-top:1px solid var(--line); padding-top:10px; margin-top:6px; }
+  summary { color:var(--dim); min-height:36px; }
+  select { width:100%; margin-bottom:14px; }
+  dialog { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:16px; padding:18px; width:min(420px,92vw); }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+  dialog h2 { margin:0 0 12px; font-size:18px; }
+  dialog .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
+  #toast { position:fixed; left:50%; bottom:calc(90px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:#000d; padding:10px 16px; border-radius:20px; display:none; max-width:90vw; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <h1>DumbConvert</h1>
+  <label class="btn" for="file">Add scans</label>
+  <input id="file" type="file" multiple accept="image/*,.dng,.nef,.cr2,.cr3,.arw,.raf,.orf,.rw2,.tif,.tiff" hidden>
+  <button id="compare" title="Hold to see the automatic result">Auto</button>
+  <button id="exportBtn" class="primary" disabled>Export</button>
+</div>
+
+<div id="view">
+  <div id="hint">Add scans of your negatives<br>(photos, TIFF or RAW files from the Files app)</div>
+  <img id="img" alt="" hidden>
+  <div id="busy"></div>
+</div>
+
+<div id="strip"></div>
+
+<div id="side">
+  <div class="tools">
+    <button id="rotL" title="Rotate left">⟲</button>
+    <button id="rotR" title="Rotate right">⟳</button>
+    <button id="mirror">Mirror</button>
+    <button id="bw">B&amp;W</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div id="faders"></div>
+  <details>
+    <summary>Film &amp; more</summary>
+    <select id="film"><option value="">Film stock: automatic</option></select>
+    <div id="more"></div>
+  </details>
+  <button id="remove" style="margin-top:14px;width:100%" disabled>Remove this photo</button>
+</div>
+
+<dialog id="dlg">
+  <h2>Export</h2>
+  <div class="row"><label>Format</label><select id="fmt"></select></div>
+  <div class="row"><label>Colour space</label><select id="space"></select></div>
+  <div class="row"><label>Long edge</label>
+    <select id="size"><option value="0">Original size</option><option value="4096">4096 px</option>
+      <option value="2048">2048 px</option><option value="1024">1024 px</option></select></div>
+  <div class="actions"><button id="cancel">Cancel</button><button id="go" class="primary">Convert</button></div>
+</dialog>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const FADERS = [
+  ["density", "Density", 0.5, 1.5, 0.01], ["contrast", "Contrast", 0.5, 1.5, 0.01],
+  ["saturation", "Saturation", 0, 2, 0.01], ["cyan", "Cyan", 0.8, 1.2, 0.005],
+  ["magenta", "Magenta", 0.8, 1.2, 0.005], ["yellow", "Yellow", 0.8, 1.2, 0.005],
+];
+const MORE = [
+  ["highlight_tone", "Highlight tone", -1, 1, 0.05], ["shadow_tone", "Shadow tone", -1, 1, 0.05],
+  ["highlight_warmth", "Highlight warmth", -1, 1, 0.05], ["highlight_tint", "Highlight tint", -1, 1, 0.05],
+  ["shadow_warmth", "Shadow warmth", -1, 1, 0.05], ["shadow_tint", "Shadow tint", -1, 1, 0.05],
+  ["fine_rotation", "Straighten (°)", -10, 10, 0.1], ["glow", "Glow", 0, 1, 0.05],
+  ["sharpen", "Sharpen", 0, 1, 0.05], ["color_noise", "Colour noise", 0, 1, 0.05],
+];
+let defaults = {}, photos = [], cur = null;   // cur: {id, name, settings, thumb}
+const settingsOf = new Map();                  // photo id -> settings
+
+function toast(msg, ms = 3000) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", ms);
+}
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || (await r.json()).error || m; } catch {} throw new Error(m); }
+  return r;
+}
+
+// ---- sliders ----
+function buildSliders(host, list) {
+  for (const [key, label, min, max, step] of list) {
+    const row = document.createElement("div"); row.className = "row";
+    row.innerHTML = `<label>${label}<b id="v_${key}"></b></label><input type="range" id="s_${key}" min="${min}" max="${max}" step="${step}">`;
+    host.appendChild(row);
+    const input = row.querySelector("input");
+    input.addEventListener("input", () => { cur.settings[key] = parseFloat(input.value); showValue(key); schedule(); });
+    input.addEventListener("dblclick", () => { cur.settings[key] = defaults[key]; syncUI(); schedule(); });
+  }
+}
+function showValue(key) { const v = cur.settings[key]; $("v_" + key).textContent = (+v).toFixed(2); }
+function syncUI() {
+  if (!cur) return;
+  for (const [key] of [...FADERS, ...MORE]) { $("s_" + key).value = cur.settings[key]; showValue(key); }
+  $("bw").classList.toggle("on", cur.settings.grayscale);
+  $("mirror").classList.toggle("on", cur.settings.mirror);
+  $("film").value = cur.film || "";
+}
+
+// ---- preview (latest request wins) ----
+let pending = null, inflight = null, seq = 0;
+function schedule() { clearTimeout(pending); pending = setTimeout(render, 120); }
+async function render(longEdge = 1400) {
+  if (!cur) return;
+  if (inflight) inflight.abort();
+  const ctl = inflight = new AbortController(), mine = ++seq, id = cur.id;
+  $("busy").classList.add("on");
+  try {
+    const r = await api(`/api/photos/${id}/preview?long_edge=${longEdge}`, {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cur.settings), signal: ctl.signal });
+    const url = URL.createObjectURL(await r.blob());
+    if (mine !== seq || !cur || cur.id !== id) { URL.revokeObjectURL(url); return; }
+    const img = $("img"), old = img.src;
+    img.src = url; img.hidden = false; $("hint").hidden = true;
+    if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+    if (longEdge === 1400 || !cur.thumb) updateThumb(url);
+  } catch (e) { if (e.name !== "AbortError") toast("Preview failed: " + e.message, 5000); }
+  finally { if (mine === seq) $("busy").classList.remove("on"); }
+}
+function updateThumb(url) {
+  const el = document.querySelector(`.th[data-id="${cur.id}"]`);
+  if (el) { cur.thumb = true; el.style.backgroundImage = `url(${url})`; }
+}
+
+// ---- photos ----
+function drawStrip() {
+  const strip = $("strip"); strip.innerHTML = "";
+  for (const p of photos) {
+    const d = document.createElement("div"); d.className = "th" + (cur && cur.id === p.id ? " sel" : ""); d.dataset.id = p.id;
+    d.innerHTML = `<span>${p.name.replace(/</g, "&lt;")}</span>`;
+    d.addEventListener("click", () => select(p.id));
+    strip.appendChild(d);
+  }
+}
+function select(id) {
+  const p = photos.find((x) => x.id === id); if (!p) return;
+  if (!settingsOf.has(id)) settingsOf.set(id, {...defaults});
+  cur = {id, name: p.name, settings: settingsOf.get(id), film: p.film || "", thumb: false};
+  drawStrip(); syncUI();
+  $("exportBtn").disabled = $("remove").disabled = false;
+  render();
+}
+$("file").addEventListener("change", async (e) => {
+  const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+  toast(`Uploading ${files.length} file(s)…`, 60000);
+  try {
+    const form = new FormData(); files.forEach((f) => form.append("files", f, f.name));
+    const added = await (await api("/api/photos", {method: "POST", body: form})).json();
+    photos.push(...added.map((a) => ({...a, film: ""})));
+    toast("Done"); select(added[0].id);
+  } catch (err) { toast("Upload failed: " + err.message, 6000); }
+});
+$("remove").addEventListener("click", async () => {
+  if (!cur || !confirm(`Remove ${cur.name}?`)) return;
+  await api(`/api/photos/${cur.id}`, {method: "DELETE"});
+  photos = photos.filter((p) => p.id !== cur.id); settingsOf.delete(cur.id);
+  cur = null; $("img").hidden = true; $("hint").hidden = false;
+  $("exportBtn").disabled = $("remove").disabled = true; drawStrip();
+  if (photos.length) select(photos[0].id);
+});
+
+// ---- tools ----
+$("rotL").onclick = () => { cur && (cur.settings.rotation = (cur.settings.rotation + 1) % 4, schedule()); };
+$("rotR").onclick = () => { cur && (cur.settings.rotation = (cur.settings.rotation + 3) % 4, schedule()); };
+$("mirror").onclick = () => { if (!cur) return; cur.settings.mirror = !cur.settings.mirror; syncUI(); schedule(); };
+$("bw").onclick = () => { if (!cur) return; cur.settings.grayscale = !cur.settings.grayscale; syncUI(); schedule(); };
+$("reset").onclick = () => { if (!cur) return; Object.assign(cur.settings, defaults); syncUI(); schedule(); };
+$("film").onchange = async () => {
+  if (!cur) return; cur.film = $("film").value;
+  const p = photos.find((x) => x.id === cur.id); p.film = cur.film;
+  await api(`/api/photos/${cur.id}/film`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({film: cur.film})});
+  schedule();
+};
+// hold "Auto": peek at the automatic result without your edits
+(() => {
+  const b = $("compare"); let saved = null;
+  const down = (e) => { e.preventDefault(); if (!cur) return; saved = {...cur.settings}; Object.assign(cur.settings, defaults); render(); };
+  const up = () => { if (!saved) return; Object.assign(cur.settings, saved); saved = null; render(); };
+  b.addEventListener("pointerdown", down); b.addEventListener("pointerup", up); b.addEventListener("pointerleave", up); b.addEventListener("pointercancel", up);
+})();
+
+// ---- export ----
+$("exportBtn").onclick = () => $("dlg").showModal();
+$("cancel").onclick = () => $("dlg").close();
+$("go").onclick = async () => {
+  if (!cur) return; $("dlg").close();
+  toast("Converting… full-size exports can take a minute", 120000);
+  try {
+    const r = await api(`/api/photos/${cur.id}/export`, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({settings: cur.settings, format: $("fmt").value, color_space: $("space").value, long_edge: +$("size").value})});
+    const blob = await r.blob();
+    const cd = r.headers.get("content-disposition") || "";
+    const name = (cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i) || [])[1] || "converted." + $("fmt").value;
+    const file = new File([blob], decodeURIComponent(name), {type: blob.type});
+    if (navigator.canShare && navigator.canShare({files: [file]})) {
+      try { await navigator.share({files: [file]}); toast("Done"); return; } catch (e) { if (e.name === "AbortError") { toast(""); return; } }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    toast("Saved " + file.name);
+  } catch (e) { toast("Export failed: " + e.message, 6000); }
+};
+
+// ---- start ----
+(async () => {
+  const info = await (await api("/api/info")).json();
+  defaults = info.defaults;
+  buildSliders($("faders"), FADERS); buildSliders($("more"), MORE);
+  for (const f of info.films) $("film").add(new Option(f.name, f.id));
+  for (const [k, v] of Object.entries(info.formats)) $("fmt").add(new Option(v, k));
+  for (const [k, v] of Object.entries(info.color_spaces)) $("space").add(new Option(v, k));
+  photos = await (await api("/api/photos")).json();
+  drawStrip(); if (photos.length) select(photos[0].id);
+})().catch((e) => toast("Could not start: " + e.message, 8000));
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+services:
+  dumbconvert:
+    image: ghcr.io/jedwardrico/dumbconvert:latest
+    # build: .                      # or build it on the machine instead of pulling
+    container_name: dumbconvert
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DUMBCONVERT_TOKEN: change-me   # password; open the page once with ?token=change-me
+    volumes:
+      - ./data:/data                 # uploads and exports (safe to empty)
